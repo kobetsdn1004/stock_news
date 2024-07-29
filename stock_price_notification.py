@@ -19,8 +19,8 @@ def send_line_notify(message):
         print(f"Error sending Line Notify: {e}")
 
 # 股票代碼列表
-stocks = ['0050.TW', '00929.TW', '2883.TW', '2330.TW']
-stocks = ['2324.TW', '2357.TW', '2382.TW', '2376.TW']
+stocks = ['0050.TW', '00929.TW', '2883.TW', '2330.TW','2324.TW', '2357.TW', '2382.TW', '2376.TW']
+#stocks = ['2324.TW', '2357.TW', '2382.TW', '2376.TW']
 
 def get_stock_info(symbol):
     stock = yf.Ticker(symbol)
