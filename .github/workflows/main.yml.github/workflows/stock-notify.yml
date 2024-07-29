@@ -1,0 +1,28 @@
+name: Daily Stock Notification
+
+on:
+  schedule:
+    - cron: '0 2 * * *'   # 每天1點 UTC時間，即早上9點 CST
+    - cron: '0 5 * * *'   # 每天5點 UTC時間，即下午1點 CST
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.x'  # 選擇適合的 Python 版本
+
+    - name: Install dependencies
+      run: |
+        pip install yfinance requests pytz
+
+    - name: Run notification script
+      env:
+        LINE_NOTIFY_TOKEN: ${{ secrets.LINE_NOTIFY_TOKEN }}
+      run: stock_news_scraper.py  # 替換為你的腳本名稱
