@@ -1,105 +1,7 @@
-import os
+import yfinance as yf
 import requests
-from bs4 import BeautifulSoup
-import smtplib
-import json
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import os
 from datetime import datetime
-import re
-
-def shorten_url(url):
-    try:
-        response = requests.get(f"http://tinyurl.com/api-create.php?url={url}")
-        return response.text
-    except:
-        return url  # 如果縮短失敗，返回原始URL
-
-def get_tw_stock_info():
-    url = "https://query1.finance.yahoo.com/v8/finance/chart/%5ETWII"
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-    
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        data = json.loads(response.text)
-        
-        # 獲取最新的收盤價
-        price = data['chart']['result'][0]['meta']['regularMarketPrice']
-        
-        # 獲取漲跌幅
-        previous_close = data['chart']['result'][0]['meta']['chartPreviousClose']
-        change_percent = (price - previous_close) / previous_close * 100
-
-        # 設定漲跌顏色
-        color = "red" if change_percent >= 0 else "green"
-        
-        return f"<strong>台灣加權指數</strong>: {price:.2f} (<span style='color:{color};'>{change_percent:+.2f}%</span>)"
-    except Exception as e:
-        print(f"無法獲取台灣加權指數信息: {e}")
-        return "<strong>台灣加權指數</strong>: 無法獲取數據"
-
-def get_us_stock_info():
-    url = "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC"
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-    
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        data = json.loads(response.text)
-        
-        # 獲取最新的收盤價
-        price = data['chart']['result'][0]['meta']['regularMarketPrice']
-        
-        # 獲取漲跌幅
-        previous_close = data['chart']['result'][0]['meta']['chartPreviousClose']
-        change_percent = (price - previous_close) / previous_close * 100
-
-        # 設定漲跌顏色
-        color = "red" if change_percent >= 0 else "green"
-        
-        return f"<strong>S&P 500指數</strong>: {price:.2f} (<span style='color:{color};'>{change_percent:+.2f}%</span>)"
-    except Exception as e:
-        print(f"無法獲取S&P 500指數信息: {e}")
-        return "<strong>S&P 500指數</strong>: 無法獲取數據"
-
-def get_tw_news():
-    url = "https://tw.stock.yahoo.com/tw-market/"
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    
-    news_items = soup.find_all('div', {'class': 'Py(14px)'})[:5]  # 獲取前5條新聞
-    
-    news = []
-    for item in news_items:
-        title = item.find('h3').text.strip()
-        link = item.find('a')['href']
-        short_link = shorten_url(link)
-        news.append(f"{title}\n{short_link}\n")
-    
-    return "\n".join(news) if news else "無法獲取台股新聞"
-
-def get_us_news():
-    url = "https://finance.yahoo.com/topic/stock-market-news/"
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    
-    news_items = soup.find_all('div', {'class': 'Py(14px)'})[:5]  # 獲取前5條新聞
-    
-    news = []
-    for item in news_items:
-        title = item.find('h3').text.strip()
-        link = item.find('a')['href']
-        if not link.startswith('http'):
-            link = "https://finance.yahoo.com" + link
-        short_link = shorten_url(link)
-        news.append(f"{title}\n{short_link}\n")
-    
-    return "\n".join(news) if news else "無法獲取美股新聞"
 
 def send_line_notify(message):
     line_notify_token = os.environ['LINE_NOTIFY_TOKEN']
@@ -115,87 +17,49 @@ def send_line_notify(message):
     except Exception as e:
         print(f"Error sending Line Notify: {e}")
 
-def send_email(content):
-    sender_email = os.environ['SENDER_EMAIL']
-    receiver_email = os.environ['RECEIVER_EMAIL']
-    password = os.environ['EMAIL_PASSWORD']
+# 股票代碼列表
+stocks = ['0050.TW', '00929.TW', '2883.TW', '2330.TW', '2324.TW', '2357.TW', '2382.TW', '2376.TW']
 
-    message = MIMEMultipart("alternative")
-    message["Subject"] = f"每日股市資訊與新聞 - {datetime.now().strftime('%Y-%m-%d')}"
-    message["From"] = sender_email
-    message["To"] = receiver_email
-
-    # 轉換純文本內容為HTML
-    html = f"""\
-    <html>
-      <body>
-        {content}
-      </body>
-    </html>
-    """
-
-    part = MIMEText(html, "html")
-    message.attach(part)
-
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(sender_email, password)
-            server.sendmail(sender_email, receiver_email, message.as_string())
-        print("Email sent successfully")
-    except Exception as e:
-        print(f"Error sending email: {e}")
-
-def send_notifications(content):
-    # 發送郵件
-    send_email(content)
+def get_stock_info(symbol):
+    stock = yf.Ticker(symbol)
+    stock_name = get_stock_name(symbol)
     
-    # 準備 Line 消息
-    line_message = content.replace('<strong>', '').replace('</strong>', '')
-    line_message = line_message.replace('<br>', '\n')
-    line_message = line_message.replace('<p>', '').replace('</p>', '\n')
-    line_message = line_message.replace('<h2>', '\n').replace('</h2>', '\n')
-    line_message = line_message.replace('<h3>', '\n').replace('</h3>', '\n')
-    line_message = re.sub(r'<span.*?>', '', line_message)
-    line_message = re.sub(r'</span>', '', line_message)
+    hist = stock.history(period="2d")
+    current_price = hist['Close'].iloc[-1]
     
-    # 發送 Line 通知
-    send_line_notify(line_message)
+    hist_52w = stock.history(period="52wk")
+    high_price = hist_52w['High'].max()
+    
+    percentage = (current_price / high_price - 1) * 100
+    return stock_name, current_price, percentage
 
-def main():
-    content = "<h2>今日股市資訊與新聞:</h2>"
-
+def get_stock_name(symbol):
+    # 這裡使用台灣證券交易所的API來獲取股票名稱
+    url = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_{symbol.replace('.TW', '')}.tw"
     try:
-        tw_info = get_tw_stock_info()
-        content += f"<p>{tw_info}</p>"
+        response = requests.get(url)
+        data = response.json()
+        if data and data['msgArray']:
+            stock_name = data['msgArray'][0]['n']
+        else:
+            stock_name = "未知股票"
     except Exception as e:
-        print(f"獲取台股資訊時出錯: {e}")
-        content += "<p><strong>台灣加權指數</strong>: 獲取資訊失敗</p>"
+        stock_name = "未知股票"
+        print(f"獲取股票名稱時出錯: {e}")
+    return stock_name
 
+# 取得今天的日期
+today = datetime.now().strftime("%Y年%m月%d日")
+message = f"今天日期{today} 股價通知:\n\n"
+
+for stock in stocks:
     try:
-        us_info = get_us_stock_info()
-        content += f"<p>{us_info}</p>"
+        name, price, percentage = get_stock_info(stock)
+        message += f"{name} ({stock}): 當前價格 {price:.2f}, 相對最高點 {percentage:.2f}%\n"
     except Exception as e:
-        print(f"獲取美股資訊時出錯: {e}")
-        content += "<p><strong>S&P 500指數</strong>: 獲取資訊失敗</p>"
+        print(f"獲取股票 {stock} 數據時出錯: {e}")
+        message += f"{stock}: 無法獲取數據\n"
 
-    content += "<h3>台股熱門新聞:</h3>"
-    try:
-        tw_news = get_tw_news()
-        content += f"<p>{tw_news.replace('\n', '<br>')}</p>"
-    except Exception as e:
-        print(f"獲取台股新聞時出錯: {e}")
-        content += "<p>獲取台股新聞失敗</p>"
-
-    content += "<h3>美股熱門新聞:</h3>"
-    try:
-        us_news = get_us_news()
-        content += f"<p>{us_news.replace('\n', '<br>')}</p>"
-    except Exception as e:
-        print(f"獲取美股新聞時出錯: {e}")
-        content += "<p>獲取美股新聞失敗</p>"
-
-    print(content)  # 打印整個內容以便調試
-    send_notifications(content)
-
-if __name__ == "__main__":
-    main()
+# 發送 LINE 通知
+print(message) # 打印整個內容以便調試
+send_line_notify(message)
