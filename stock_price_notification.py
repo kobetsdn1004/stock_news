@@ -43,7 +43,7 @@ def get_stock_info(symbol):
 
 # 取得今天的日期
 today = datetime.now().strftime("%Y年%m月%d日")
-message = f"今天日期{today} 股價通知:\n\n"
+message = f"\n今天日期{today} 股價通知:\n\n"
 
 
 for stock in stocks:
