@@ -19,11 +19,16 @@ def send_line_notify(message):
         print(f"Error sending Line Notify: {e}")
 
 # 股票代碼列表
-stocks = ['0050.TW', '00929.TW', '2883.TW', '2330.TW','2324.TW', '2357.TW', '2382.TW', '2376.TW']
-#stocks = ['2324.TW', '2357.TW', '2382.TW', '2376.TW']
+stocks = ['0050.TW', '00929.TW', '2883.TW', '2330.TW', '2324.TW', '2357.TW', '2382.TW', '2376.TW']
+													  
 
 def get_stock_info(symbol):
     stock = yf.Ticker(symbol)
+    
+    try:
+        stock_name = stock.info['longName']
+    except KeyError:
+        stock_name = "未命名股票"
     
     # 獲取最新的股票數據
     hist = stock.history(period="2d")
@@ -34,17 +39,21 @@ def get_stock_info(symbol):
     high_price = hist_52w['High'].max()
     
     percentage = (current_price / high_price - 1) * 100
-    return current_price, percentage
+    return stock_name, current_price, percentage
 
-message = "\n今日股票價格通知:\n\n"
+# 取得今天的日期
+today = datetime.now().strftime("%Y年%m月%d日")
+message = f"今天日期{today} 股價通知:\n\n"
+
 
 for stock in stocks:
     try:
-        price, percentage = get_stock_info(stock)
-        message += f"{stock}: 當前價格 {price:.2f}, 相對最高點 {percentage:.2f}%\n"
+        name, price, percentage = get_stock_info(stock)
+        message += f"{name} ({stock}): 當前價格 {price:.2f}, 相對最高點 {percentage:.2f}%\n"
     except Exception as e:
         print(f"獲取股票 {stock} 數據時出錯: {e}")
         message += f"{stock}: 無法獲取數據\n"
+
 
 # 發送 LINE 通知
 print(message) # 打印整個內容以便調試
